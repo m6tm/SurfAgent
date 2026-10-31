@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+extension.zip
+*.local
+
+# Logs
+*.log
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+*.zip
+*.pdf
