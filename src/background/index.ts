@@ -2,11 +2,16 @@ import { AUTH_POLL_ALARM } from '../shared/config'
 import type { AgentTurnResult, LoginState, PageContext, RuntimeMessage, RuntimeResponse } from '../shared/types'
 import { cancelFlow, login, logout, poll, status } from './auth'
 import { answerPageQuestion, listModels, selectModel } from './openai'
-import { getLayaEndpoint, layaPredict, setLayaEndpoint } from '../agents/laya'
-import { runAgentTurn } from '../agents/graph'
-import { ingestConversation, ingestPage } from '../agents/rag/ingest'
-import { RagStore } from '../agents/rag/store'
-import { LocalHashEmbeddings } from '../agents/rag/embeddings'
+import { getLayaEndpoint, setLayaEndpoint } from '../agents/laya'
+
+// Les modules agents (LangGraph, RAG) sont charges a la demande : le service
+// worker demarre vite et le gros bundle n'est charge que sur AGENTS:*.
+async function loadAgents() {
+  return Promise.all([import('../agents/graph'), import('../agents/rag/ingest'), import('../agents/rag/store'), import('../agents/rag/embeddings')])
+}
+async function loadLayaPredict() {
+  return import('../agents/laya')
+}
 
 async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>> {
   switch (message.type) {
@@ -31,6 +36,7 @@ async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>
     }
     case 'AGENTS:ASK': {
       const { question, page } = message.payload
+      const [{ runAgentTurn }, { ingestConversation }, { RagStore }, { LocalHashEmbeddings }] = await loadAgents()
       const state = await runAgentTurn(question, (page as PageContext | null) ?? null)
       const answer = state.finalAnswer ?? ''
 
@@ -69,10 +75,12 @@ async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>
       const endpoint = await getLayaEndpoint()
       if (!endpoint) return { ok: false, error: 'Serveur Laya non configure.' }
       // Ping minimal : une question noul triviale sur une proposition vraie.
+      const { layaPredict } = await loadLayaPredict()
       const result = await layaPredict({ body: 'ping' }, { ping: { type: 'noul', instructions: 'La phrase suivante est-elle positive ? "Le test fonctionne."' } })
       return { ok: true, data: { endpoint, result } }
     }
     case 'AGENTS:INGEST_PAGE': {
+      const [, { ingestPage }, { RagStore }, { LocalHashEmbeddings }] = await loadAgents()
       const store = await RagStore.create(new LocalHashEmbeddings())
       try {
         if (await store.hasUrl(message.payload.page.url)) {
