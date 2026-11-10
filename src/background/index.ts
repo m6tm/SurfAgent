@@ -2,6 +2,7 @@ import { AUTH_POLL_ALARM } from '../shared/config'
 import type { AgentTurnResult, LoginState, PageContext, RuntimeMessage, RuntimeResponse } from '../shared/types'
 import { cancelFlow, login, logout, poll, status } from './auth'
 import { answerPageQuestion, listModels, selectModel } from './openai'
+import { getLayaEndpoint, layaPredict, setLayaEndpoint } from '../agents/laya'
 import { runAgentTurn } from '../agents/graph'
 import { ingestConversation, ingestPage } from '../agents/rag/ingest'
 import { RagStore } from '../agents/rag/store'
@@ -57,6 +58,19 @@ async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>
           warning: state.warning ?? null,
         } satisfies AgentTurnResult,
       }
+    }
+    case 'LAYA:GET':
+      return { ok: true, data: { endpoint: await getLayaEndpoint() } }
+    case 'LAYA:SET': {
+      await setLayaEndpoint(message.payload.endpoint)
+      return { ok: true, data: { endpoint: await getLayaEndpoint() } }
+    }
+    case 'LAYA:TEST': {
+      const endpoint = await getLayaEndpoint()
+      if (!endpoint) return { ok: false, error: 'Serveur Laya non configure.' }
+      // Ping minimal : une question noul triviale sur une proposition vraie.
+      const result = await layaPredict({ body: 'ping' }, { ping: { type: 'noul', instructions: 'La phrase suivante est-elle positive ? "Le test fonctionne."' } })
+      return { ok: true, data: { endpoint, result } }
     }
     case 'AGENTS:INGEST_PAGE': {
       const store = await RagStore.create(new LocalHashEmbeddings())

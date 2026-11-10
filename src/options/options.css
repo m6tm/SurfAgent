@@ -123,6 +123,20 @@ header p {
 .msg-ok { background: #e6f7f2; border: 1px solid #a7e3d3; color: var(--green-dark); }
 .msg-err { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
 
+.hint { font-size: 13px; color: #6b7280; line-height: 1.55; margin: 0 0 10px; }
+
+.laya-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.laya-row input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.laya-row input:focus { outline: 2px solid rgba(16, 163, 127, 0.35); border-color: var(--green); }
+
 code {
   background: #f3f4f6;
   padding: 1px 5px;

@@ -8,11 +8,17 @@ export function Options() {
   const [auth, setAuth] = useState<LoginState | null>(null)
   const [busy, setBusy] = useState<'logout' | 'login' | 'test' | null>(null)
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [layaEndpoint, setLayaEndpoint] = useState('')
+  const [layaBusy, setLayaBusy] = useState<'save' | 'test' | null>(null)
+  const [layaMessage, setLayaMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
   useEffect(() => {
     sendToBackground<LoginState>({ type: 'AUTH:STATUS' })
       .then(setAuth)
       .catch(() => setAuth({ state: 'signedOut' }))
+    sendToBackground<{ endpoint: string | null }>({ type: 'LAYA:GET' })
+      .then((res) => setLayaEndpoint(res.endpoint ?? ''))
+      .catch(() => undefined)
   }, [])
 
   useEffect(() => {
@@ -83,6 +89,35 @@ export function Options() {
     }
   }
 
+  async function handleSaveLaya() {
+    setLayaBusy('save')
+    setLayaMessage(null)
+    try {
+      await sendToBackground<{ endpoint: string | null }>({ type: 'LAYA:SET', payload: { endpoint: layaEndpoint } })
+      setLayaMessage({
+        kind: 'ok',
+        text: layaEndpoint.trim() ? 'Endpoint Laya enregistre.' : 'Endpoint Laya vide : le routeur utilisera le fallback LLM.',
+      })
+    } catch (err) {
+      setLayaMessage({ kind: 'err', text: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setLayaBusy(null)
+    }
+  }
+
+  async function handleTestLaya() {
+    setLayaBusy('test')
+    setLayaMessage(null)
+    try {
+      const res = await sendToBackground<{ endpoint: string; result: unknown }>({ type: 'LAYA:TEST' })
+      setLayaMessage({ kind: 'ok', text: `Laya repond sur ${res.endpoint}.` })
+    } catch (err) {
+      setLayaMessage({ kind: 'err', text: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setLayaBusy(null)
+    }
+  }
+
   return (
     <div className="wrap">
       <header>
@@ -150,6 +185,30 @@ export function Options() {
         )}
 
         {message ? <div className={`msg ${message.kind === 'ok' ? 'msg-ok' : 'msg-err'}`}>{message.text}</div> : null}
+      </div>
+
+      <div className="card">
+        <h2>Laya AI (optionnel)</h2>
+        <p className="hint">
+          Serveur Laya auto-heberge pour les decisions du routeur (System 1). Sans endpoint, chaque
+          decision bascule automatiquement sur le modele de chat.
+        </p>
+        <div className="laya-row">
+          <input
+            type="url"
+            value={layaEndpoint}
+            placeholder="http://localhost:8000"
+            aria-label="Endpoint du serveur Laya"
+            onChange={(e) => setLayaEndpoint(e.target.value)}
+          />
+          <button className="btn btn-secondary" onClick={handleSaveLaya} disabled={layaBusy !== null}>
+            {layaBusy === 'save' ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+          <button className="btn btn-primary" onClick={handleTestLaya} disabled={layaBusy !== null}>
+            {layaBusy === 'test' ? 'Test en cours...' : 'Tester'}
+          </button>
+        </div>
+        {layaMessage ? <div className={`msg ${layaMessage.kind === 'ok' ? 'msg-ok' : 'msg-err'}`}>{layaMessage.text}</div> : null}
       </div>
 
       <div className="card">

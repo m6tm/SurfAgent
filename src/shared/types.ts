@@ -39,6 +39,9 @@ export type RuntimeMessage =
   | { type: 'PAGE:ASK'; payload: { question: string; page: PageContext; files?: AttachedFile[] } }
   | { type: 'AGENTS:ASK'; payload: { question: string; page: PageContext | null } }
   | { type: 'AGENTS:INGEST_PAGE'; payload: { page: PageContext } }
+  | { type: 'LAYA:GET' }
+  | { type: 'LAYA:SET'; payload: { endpoint: string } }
+  | { type: 'LAYA:TEST' }
   | { type: 'MODELS:LIST' }
   | { type: 'MODELS:SELECT'; payload: { model: string } }
 
