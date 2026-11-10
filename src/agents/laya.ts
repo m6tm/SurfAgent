@@ -46,8 +46,10 @@ export async function setLayaEndpoint(endpoint: string): Promise<void> {
 }
 
 /**
- * Interroge le serveur Laya. Rejette si non configure ou injoignable,
- * pour que l'appelant bascule sur son fallback.
+ * Interroge le serveur Laya (protocole Jev /v1/systemone). Rejette si non
+ * configure ou injoignable, pour que l'appelant bascule sur son fallback.
+ * Retourne une carte plate : choice -> libelle choisi, noul -> P(vrai),
+ * les autres champs (probabilites, confidence) sont exposes en <qid>.<champ>.
  */
 export async function layaPredict(
   state: Record<string, unknown>,
@@ -59,15 +61,35 @@ export async function layaPredict(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), LAYA_TIMEOUT_MS)
   try {
-    const res = await fetch(`${endpoint.replace(/\/$/, '')}/predict`, {
+    const res = await fetch(`${endpoint.replace(/\/$/, '')}/v1/systemone`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ state, questions }),
       signal: controller.signal,
     })
     if (!res.ok) throw new Error(`Laya HTTP ${res.status}`)
-    return (await res.json()) as LayaResult
+    const raw = (await res.json()) as {
+      answers?: Record<string, Record<string, unknown>>
+    }
+    return flattenAnswers(raw.answers ?? {})
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** Aplatit les reponses Jev en valeurs directement exploitables. */
+function flattenAnswers(answers: Record<string, Record<string, unknown>>): LayaResult {
+  const out: LayaResult = {}
+  for (const [qid, answer] of Object.entries(answers)) {
+    if (typeof answer.choice === 'string') out[qid] = answer.choice
+    if (typeof answer.noul === 'number') out[qid] = answer.noul
+    if (typeof answer.score === 'number') out[qid] = answer.score
+    if (typeof answer.confidence === 'number') out[`${qid}.confidence`] = answer.confidence
+    if (answer.probabilities && typeof answer.probabilities === 'object') {
+      for (const [label, prob] of Object.entries(answer.probabilities as Record<string, unknown>)) {
+        if (typeof prob === 'number') out[`${qid}.${label}`] = prob
+      }
+    }
+  }
+  return out
 }
