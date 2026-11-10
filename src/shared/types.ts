@@ -5,6 +5,13 @@ export interface PageContext {
   text: string
 }
 
+export interface AttachedFile {
+  name: string
+  mimeType: string
+  dataUrl: string
+  size: number
+}
+
 /** Etat d'authentification partage par toute l'UI. */
 export type LoginState =
   | { state: 'signedIn'; email: string | null; expiresAt: number | null }
@@ -19,7 +26,9 @@ export type RuntimeMessage =
   | { type: 'AUTH:STATUS' }
   | { type: 'AUTH:CANCEL_FLOW' }
   | { type: 'AUTH:OPEN_VERIFY'; payload: { url: string } }
-  | { type: 'PAGE:ASK'; payload: { question: string; page: PageContext } }
+  | { type: 'PAGE:ASK'; payload: { question: string; page: PageContext; files?: AttachedFile[] } }
+  | { type: 'AGENTS:ASK'; payload: { question: string; page: PageContext | null } }
+  | { type: 'AGENTS:INGEST_PAGE'; payload: { page: PageContext } }
   | { type: 'MODELS:LIST' }
   | { type: 'MODELS:SELECT'; payload: { model: string } }
 

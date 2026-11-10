@@ -1,7 +1,21 @@
 import { AUTH_POLL_ALARM } from '../shared/config'
-import type { LoginState, RuntimeMessage, RuntimeResponse } from '../shared/types'
+import type { LoginState, PageContext, RuntimeMessage, RuntimeResponse } from '../shared/types'
 import { cancelFlow, login, logout, poll, status } from './auth'
 import { answerPageQuestion, listModels, selectModel } from './openai'
+import { runAgentTurn } from '../agents/graph'
+import { ingestPage } from '../agents/rag/ingest'
+import { RagStore } from '../agents/rag/store'
+import { LocalHashEmbeddings } from '../agents/rag/embeddings'
+
+/** Resultat renvoye a l'UI apres un tour d'orchestration. */
+export interface AgentTurnResult {
+  mode: 'chat' | 'agent' | null
+  routingSource: 'laya' | 'llm' | null
+  confidence: number
+  answer: string
+  todos: Array<{ id: string; label: string; status: 'pending' | 'in_progress' | 'done' }>
+  warning: string | null
+}
 
 async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>> {
   switch (message.type) {
@@ -20,9 +34,29 @@ async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>
       return { ok: true, data: null }
     }
     case 'PAGE:ASK': {
-      const { question, page } = message.payload
-      const result = await answerPageQuestion(question, page)
+      const { question, page, files } = message.payload
+      const result = await answerPageQuestion(question, page, files)
       return { ok: true, data: result }
+    }
+    case 'AGENTS:ASK': {
+      const { question, page } = message.payload
+      const state = await runAgentTurn(question, (page as PageContext | null) ?? null)
+      return {
+        ok: true,
+        data: {
+          mode: state.routing?.mode ?? null,
+          routingSource: state.routing?.source ?? null,
+          confidence: state.routing?.confidence ?? 0,
+          answer: state.finalAnswer ?? '',
+          todos: state.todos ?? [],
+          warning: state.warning ?? null,
+        } satisfies AgentTurnResult,
+      }
+    }
+    case 'AGENTS:INGEST_PAGE': {
+      const store = await RagStore.create(new LocalHashEmbeddings())
+      const added = await ingestPage(store, message.payload.page)
+      return { ok: true, data: { chunks: added } }
     }
     case 'MODELS:LIST':
       return { ok: true, data: await listModels() }
@@ -34,7 +68,6 @@ async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>
 }
 
 export function registerBackgroundListener(): void {
-  // Routage des messages depuis popup/options/content.
   chrome.runtime.onMessage.addListener((message: RuntimeMessage): Promise<RuntimeResponse<unknown>> => {
     return handle(message).catch((err: unknown) => ({
       ok: false,
@@ -42,7 +75,6 @@ export function registerBackgroundListener(): void {
     }))
   })
 
-  // Polling du device-auth meme quand aucune UI n'est ouverte.
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === AUTH_POLL_ALARM) {
       void poll().catch(() => undefined)

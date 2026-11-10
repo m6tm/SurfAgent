@@ -19,11 +19,69 @@
 
 /* ---- Barre de saisie : pilule en verre ---- */
 
+.uaai-assistant-attach {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(16, 24, 40, 0.1);
+  border-radius: 999px;
+  background: rgba(16, 24, 40, 0.04);
+  color: #374151;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.uaai-assistant-attach:hover:not(:disabled) {
+  background: rgba(16, 24, 40, 0.07);
+  border-color: rgba(16, 24, 40, 0.16);
+}
+
+.uaai-assistant-attach:focus-visible {
+  outline: none;
+  border-color: rgba(16, 163, 127, 0.55);
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.14);
+}
+
+.uaai-assistant-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  align-self: flex-end;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.uaai-assistant-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 24, 40, 0.1);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  color: #1f2937;
+  max-width: 100%;
+}
+
+.uaai-assistant-file-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .uaai-assistant-form {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 9px 9px 18px;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 8px 8px 12px;
   border: 1px solid rgba(255, 255, 255, 0.65);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
@@ -34,6 +92,23 @@
     0 12px 40px rgba(16, 24, 40, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  box-sizing: border-box;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.uaai-assistant-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 42px;
+  padding: 0 6px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #111827;
+  font: inherit;
+  font-size: 14.5px;
+  letter-spacing: 0.01em;
 }
 
 .uaai-assistant-form:focus-within {
@@ -881,4 +956,62 @@
 
 .uaai-agent-stop {
   margin-top: 12px;
+}
+.uaai-assistant-attach {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+.uaai-assistant-attach:hover {
+  background: rgba(30, 41, 59, 0.95);
+}
+
+.uaai-assistant-files {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 320px;
+  justify-content: flex-end;
+}
+
+.uaai-assistant-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #e2e8f0;
+  font-size: 11px;
+  max-width: 150px;
+}
+
+.uaai-assistant-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uaai-assistant-file button {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
 }
