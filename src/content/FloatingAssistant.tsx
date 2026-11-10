@@ -3,6 +3,7 @@ import type { AttachedFile, LoginState, PageContext } from '../shared/types'
 import { sendToBackground } from '../shared/messaging'
 import { AUTH_POLL_INTERVAL_MS } from '../shared/config'
 import { renderMarkdown } from './markdown'
+import type { AgentTurnResult } from '../shared/types'
 
 const MAX_PAGE_TEXT_LENGTH = 12_000
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -33,6 +34,8 @@ export function FloatingAssistant() {
   const [loading, setLoading] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [files, setFiles] = useState<AttachedFile[]>([])
+  const [todos, setTodos] = useState<AgentTurnResult['todos']>([])
+  const [mode, setMode] = useState<'chat' | 'agent' | null>(null)
   const [models, setModels] = useState<{ models: string[]; selected: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -115,6 +118,8 @@ export function FloatingAssistant() {
     setPanelOpen(true)
     setAnswer(null)
     setError(null)
+    setMode(null)
+    setTodos([])
     setLoading(true)
     try {
       let currentAuth = auth ?? (await sendToBackground<LoginState>({ type: 'AUTH:STATUS' }))
@@ -127,11 +132,25 @@ export function FloatingAssistant() {
 
       if (currentAuth.state !== 'signedIn') return
 
-      const result = await sendToBackground<string>({
-        type: 'PAGE:ASK',
-        payload: { question: text || 'Analyse ces fichiers.', page: getPageContext(), files },
-      })
-      setAnswer(result)
+      if (files.length > 0) {
+        // Les pieces jointes empruntent le chemin direct (sans orchestration).
+        setMode(null)
+        setTodos([])
+        const result = await sendToBackground<string>({
+          type: 'PAGE:ASK',
+          payload: { question: text || 'Analyse ces fichiers.', page: getPageContext(), files },
+        })
+        setAnswer(result)
+      } else {
+        const result = await sendToBackground<AgentTurnResult>({
+          type: 'AGENTS:ASK',
+          payload: { question: text || 'Analyse cette page.', page: getPageContext() },
+        })
+        setMode(result.mode)
+        setTodos(result.todos)
+        if (result.warning) setError(result.warning)
+        setAnswer(result.answer)
+      }
       setQuestion('')
       setFiles([])
     } catch (err) {
@@ -171,7 +190,25 @@ export function FloatingAssistant() {
               <p className="uaai-assistant-status">Connexion réussie. Envoie ta question.</p>
             ) : null}
             {error ? <div className="uaai-error">{error}</div> : null}
-            {answer ? <div className="uaai-body uaai-assistant-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(answer) }} /> : null}
+            {todos.length > 0 ? (
+              <ol className="uaai-assistant-todos">
+                {todos.map((todo) => (
+                  <li key={todo.id} className={`uaai-assistant-todo is-${todo.status}`}>
+                    {todo.label}
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            {answer ? (
+              <>
+                {mode ? (
+                  <div className={`uaai-assistant-mode is-${mode}`} title="Mode decide par le routeur">
+                    {mode === 'agent' ? 'Mode agent' : 'Conversation'}
+                  </div>
+                ) : null}
+                <div className="uaai-body uaai-assistant-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(answer) }} />
+              </>
+            ) : null}
           </div>
         </section>
       ) : null}

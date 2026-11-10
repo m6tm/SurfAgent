@@ -366,6 +366,65 @@
   display: none;
 }
 
+/* Badge du mode decide par le routeur (chat / agent). */
+.uaai-assistant-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.uaai-assistant-mode.is-chat {
+  background: rgba(16, 163, 127, 0.1);
+  color: #0d8a6a;
+}
+
+.uaai-assistant-mode.is-agent {
+  background: rgba(91, 100, 242, 0.12);
+  color: #4a53d6;
+}
+
+.uaai-assistant-mode::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Plan d'action du mode agent. */
+.uaai-assistant-todos {
+  margin: 0 0 12px;
+  padding: 10px 14px 10px 26px;
+  border-radius: 12px;
+  background: rgba(16, 24, 40, 0.04);
+  border: 1px solid rgba(16, 24, 40, 0.08);
+  font-size: 13px;
+  color: #3d4654;
+}
+
+.uaai-assistant-todo {
+  margin: 4px 0;
+}
+
+.uaai-assistant-todo.is-done {
+  color: #10a37f;
+  text-decoration: line-through;
+  text-decoration-color: rgba(16, 163, 127, 0.45);
+}
+
+.uaai-assistant-todo.is-in_progress {
+  font-weight: 600;
+  color: #101828;
+}
+
+
 /* Spinner blanc pour les fonds colorés (bouton d'envoi). */
 .uaai-assistant-submit .uaai-spinner {
   border-color: rgba(255, 255, 255, 0.35);

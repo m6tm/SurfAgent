@@ -1,21 +1,11 @@
 import { AUTH_POLL_ALARM } from '../shared/config'
-import type { LoginState, PageContext, RuntimeMessage, RuntimeResponse } from '../shared/types'
+import type { AgentTurnResult, LoginState, PageContext, RuntimeMessage, RuntimeResponse } from '../shared/types'
 import { cancelFlow, login, logout, poll, status } from './auth'
 import { answerPageQuestion, listModels, selectModel } from './openai'
 import { runAgentTurn } from '../agents/graph'
 import { ingestPage } from '../agents/rag/ingest'
 import { RagStore } from '../agents/rag/store'
 import { LocalHashEmbeddings } from '../agents/rag/embeddings'
-
-/** Resultat renvoye a l'UI apres un tour d'orchestration. */
-export interface AgentTurnResult {
-  mode: 'chat' | 'agent' | null
-  routingSource: 'laya' | 'llm' | null
-  confidence: number
-  answer: string
-  todos: Array<{ id: string; label: string; status: 'pending' | 'in_progress' | 'done' }>
-  warning: string | null
-}
 
 async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>> {
   switch (message.type) {

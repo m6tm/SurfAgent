@@ -5,6 +5,16 @@ export interface PageContext {
   text: string
 }
 
+/** Resultat renvoye a l'UI apres un tour d'orchestration multi-agents. */
+export interface AgentTurnResult {
+  mode: 'chat' | 'agent' | null
+  routingSource: 'laya' | 'llm' | null
+  confidence: number
+  answer: string
+  todos: Array<{ id: string; label: string; status: 'pending' | 'in_progress' | 'done' }>
+  warning: string | null
+}
+
 export interface AttachedFile {
   name: string
   mimeType: string
