@@ -1,35 +1,97 @@
-# Upwork Profile Audit AI
+# SurfAgent
 
-Extension Chrome (Manifest V3) qui audite les profils freelances Upwork avec l'IA.
+Extension Chrome (Manifest V3) de **navigation web autonome**, concue pour etre integree par d'autres outils et applications.
 
-L'utilisateur s'authentifie avec son compte ChatGPT, ouvre un profil Upwork, clique sur le bouton "AI" en bas a droite, et recoit un rapport d'audit Markdown redige en francais (forces, faiblesses, mots-cles, plan d'action, note /20).
+SurfAgent embarque un orchestrateur multi-agents (LangGraph) dans le service worker : il route chaque demande utilisateur entre conversation simple et mode agent, decide via un serveur Laya auto-heberge (System 1) ou un LLM de secours, retient le contexte des pages visitees dans une memoire vectorielle locale, et expose le tout par un protocole de messages simple que n'importe quelle surface (popup, content script, application tierce) peut consommer.
 
-## Structure du projet
+## Cas d'usage d'integration
+
+- **Applications web** : injecter le champ flottant ou appeler le service worker directement pour deleguer une navigation a l'agent.
+- **Outils developpeur / CLIs** : consommer les routes de messages (`AGENTS:ASK`, `AGENTS:INGEST_PAGE`, `MODELS:*`, `LAYA:*`) comme API interne du navigateur.
+- **Workflows d'automatisation** : indexation RAG de pages, sauvegarde et recherche de memoire, recuperation de contenu web, orchestration multi-etapes avec plan affichable.
+
+## Architecture
 
 ```
 src/
-├── background/       Service worker (MV3, module)
-│   ├── index.ts      Routeur de messages
-│   ├── auth.ts       OAuth "Sign in with ChatGPT" (PKCE) via chrome.identity
-│   └── openai.ts     Prompt d'audit + appels API + test de connexion
-├── content/          Content script (page profil Upwork)
-│   ├── index.tsx     Injection shadow DOM du panneau flottant
-│   ├── Panel.tsx     Interface React du panneau d'audit
-│   ├── scraper.ts    Extraction des donnees du profil (selecteurs + fallbacks)
-│   ├── markdown.ts   Mini-renderer Markdown -> HTML (safe)
-│   └── content.css   Styles du panneau
-├── popup/            Popup (etat de connexion, action d'audit)
-├── options/          Page d'options (config OAuth, logout, test API)
+├── agents/              Orchestrateur multi-agents (LangChain / LangGraph)
+│   ├── graph.ts         Graphe : route -> retrieve -> chat | agent
+│   ├── router.ts        Routeur (Laya prioritaire, fallback LLM JSON)
+│   ├── laya.ts          Client Laya AI (protocole Jev /v1/systemone)
+│   ├── tools.ts         Outils agent : search_memory, save_memory, fetch_web
+│   ├── codexApi.ts      Acces backend Codex (auth, SSE, catalogue modeles)
+│   ├── codexChatModel.ts Adapteur LangChain <-> backend Codex
+│   ├── state.ts         Etat partage du graphe (reducer LangGraph)
+│   └── rag/             Memoire vectorielle locale (IndexedDB)
+│       ├── store.ts     Store + similarite cosinus + deduplication par URL
+│       ├── embeddings.ts Embeddings locaux (aucun appel reseau)
+│       └── ingest.ts    Ingestion pages / conversations / notes
+├── background/          Service worker MV3 (module, chargement paresseux)
+│   └── index.ts         Routeur de messages (protocole d'integration)
+├── content/             Content script (injection shadow DOM)
+│   ├── FloatingAssistant.tsx  UI flottante : chat, mode badge, plan de todos
+│   ├── markdown.ts      Renderer Markdown -> HTML (tables, listes, citations)
+│   └── content.css      Design glassmorphism premium
+├── popup/               Popup (etat de connexion)
+├── options/             Page options (auth, endpoint Laya)
 └── shared/
-    ├── config.ts     Constantes (endpoints IA, cles de stockage)
-    ├── messaging.ts  Protocole de messages + fetch securise
-    └── types.ts      Types partages (profil, rapport, messages)
+    ├── config.ts        Constantes (endpoints IA, cles de stockage)
+    ├── messaging.ts     sendToBackground / sendToTab
+    └── types.ts         Protocole de messages (union discriminante) + types
 ```
 
-## Tech stack
+## Protocole de messages (point d'integration)
 
-- TypeScript strict, React 19, Vite 8 (rolldown) + `@crxjs/vite-plugin` 2
-- Gestionnaire de paquets : **pnpm**
+Toute interaction passe par une union discriminante `RuntimeMessage` (`src/shared/types.ts`) et `sendToBackground` (`src/shared/messaging.ts`). Routes disponibles :
+
+| Message | Payload | Reponse |
+| --- | --- | --- |
+| `AGENTS:ASK` | `{ question, page }` | `AgentTurnResult` : mode choisi, source de routage, confiance, reponse Markdown, todos, avertissement |
+| `AGENTS:INGEST_PAGE` | `{ page }` | Nombre de chunks indexes (deduplique par URL) |
+| `PAGE:ASK` | `{ question, page, files? }` | Reponse directe du modele (sans orchestration) |
+| `MODELS:LIST` / `MODELS:SELECT` | - / `{ model }` | Catalogue du compte + modele actif |
+| `LAYA:GET` / `LAYA:SET` / `LAYA:TEST` | - / `{ endpoint }` | Endpoint Laya configure, test de connectivite |
+| `AUTH:*` | - | Connexion ChatGPT (device-code), statut, deconnexion |
+
+Un tour `AGENTS:ASK` renvoie un resultat typique :
+
+```json
+{
+  "mode": "agent",
+  "routingSource": "laya",
+  "confidence": 0.88,
+  "answer": "## Reponse ...",
+  "todos": [{ "id": "todo-1", "label": "Recuperer la page", "status": "done" }],
+  "warning": null
+}
+```
+
+## Orchestration
+
+1. **Routage** : Laya (System 1, une passe, sorties typees) decide entre conversation simple et mode agent ; sans serveur Laya configure, un LLM repond en JSON structure avec le meme contrat.
+2. **Retrieval** : recherche vectorielle (cosinus) dans la memoire locale ; ingestion automatique de la page courante a l'ouverture de l'assistant, deduplique par URL.
+3. **Chat** : reponse directe au modele avec contexte RAG + page.
+4. **Agent** : planification JSON (todos + appels d'outils bornes a 5), execution sequentielle (`search_memory`, `save_memory`, `fetch_web`), synthese finale. Degradation propre vers le chat si le plan n'est pas parsable.
+
+Le service worker demarre en ~5 ko ; les modules LangGraph et RAG (1 Mo) sont charges a la demande au premier tour d'agent.
+
+## Authentification
+
+L'extension reprend le circuit du client open-source **Codex CLI** (aucune application a creer sur `platform.openai.com`) :
+
+1. **Device-code flow** : demande de code d'appareil au backend OpenAI avec le client OAuth public de Codex (`app_EMoamEEZ73f0CkXaXp7hrann`), l'utilisateur valide sur `auth.openai.com/codex/device`, l'extension poll jusqu'a la validation.
+2. **Backend IA** : appels vers `chatgpt.com/backend-api/codex` (Responses API en SSE), catalogue de modeles compte-specifique via `/models?client_version=1.0.0` (cache 1 h).
+
+Notes :
+
+- Utilisation **non officielle** du backend abonnement ChatGPT ; les endpoints peuvent changer sans preavis.
+- Requiert un compte ChatGPT avec acces a Codex ; les modeles dependant du plan.
+- Tokens dans `chrome.storage.local` (survivent au rechargement), catalogue de modeles dans `chrome.storage.session`.
+- Usage personnel uniquement, dans le respect des conditions OpenAI.
+
+## Laya AI (optionnel)
+
+Laya est un modele de decision System 1 auto-heberge (serveur HTTP compatible Jev). Configurer l'endpoint (par defaut `http://127.0.0.1:9500`) dans la page options. Sans Laya, chaque decision bascule automatiquement sur le fallback LLM — le systeme reste entierement fonctionnel.
 
 ## Installation (dev)
 
@@ -40,7 +102,7 @@ pnpm build
 
 1. Ouvrir `chrome://extensions`
 2. Activer le mode developpeur
-3. "Charger l'extension non empaquetee" -> selectionner le dossier `dist/`
+3. "Charger l'extension non empaquetee" -> selectionner `dist/`
 
 Mode dev avec HMR (popup + options uniquement ; le content script doit etre recharge en rechargant l'extension) :
 
@@ -48,41 +110,25 @@ Mode dev avec HMR (popup + options uniquement ; le content script doit etre rech
 pnpm dev
 ```
 
-## Fonctionnement (auth + IA)
-
-Il n'y a **pas** d'application ni de `clientId` a creer sur `platform.openai.com`. L'extension reprend le circuit utilise par le client open-source **Codex CLI** :
-
-1. **Connexion (device-code flow)** : clic sur "Se connecter avec ChatGPT" -> le service worker demande un code d'appareil au backend OpenAI (`auth.openai.com/api/accounts/deviceauth/usercode`) avec le client OAuth public de Codex (`app_EMoamEEZ73f0CkXaXp7hrann`). Un code d'appareil est affiche ; l'utilisateur ouvre `https://auth.openai.com/codex/device`, entre le code et se connecte avec son compte ChatGPT. L'extension poll le statut (`alarms` + messages `AUTH:POLL`) jusqu'a la validation, puis echange le code contre des tokens.
-2. **Backend IA** : les appels sont faits vers `https://chatgpt.com/backend-api/codex` (endpoint `/responses`, protocole "Responses API" en SSE, modèles compte-spécifiques decouverts via `/models?client_version=1.0.0`). Une seule "input" contient les donnees scrapees ; le rapport Markdown est reconstruit depuis les evenements `response.output_text.done`.
-
-Notes importantes :
-
-- Utilisation **non officielle** du backend abonnement ChatGPT ; OpenAI peut changer les endpoints ou la desactiver a tout moment.
-- Requiert un compte ChatGPT avec acces a Codex. Les modèles disponibles dependent du plan (catalogue recupere a chaque session, cache 1 h).
-- Les tokens sont stockes dans `chrome.storage.session` (effaces a la fermeture du navigateur) et rafraichis automatiquement via `refresh_token`.
-- Respecte les conditions d'utilisation OpenAI ; usage personnel uniquement.
-
-## Utilisation
-
-1. Sur les pages web accessibles, un champ flottant s'affiche en bas de page dans chaque onglet.
-2. Saisis une question puis valide-la pour obtenir une reponse basee sur le titre, l'URL et le texte visible de la page. Ces donnees ne sont envoyees qu'a la validation et sont limitees en taille.
-3. Si necessaire, connecte-toi avec ChatGPT via le code d'appareil puis renvoie ta question.
-4. Sur un profil Upwork (`/freelancers/*` ou `/contractors/*`), le bouton flottant "AI" reste disponible pour ouvrir l'audit detaille existant (donnees profilees, rapport structure et note /20).
-
-Les pages internes de Chrome (par exemple `chrome://...`) et le Chrome Web Store bloquent l'injection des extensions et ne peuvent pas afficher le champ.
-
 ## Scripts
 
-| Commande             | Action                                              |
-| -------------------- | --------------------------------------------------- |
-| `pnpm dev`           | Dev server Vite (HMR popup/options)                 |
-| `pnpm build`         | Build production dans `dist/`                       |
-| `pnpm typecheck`     | TypeScript strict (no emit)                         |
-| `pnpm icons`         | Regeneration des icones PNG (via `scripts/make-icons.mjs`) |
-| `pnpm zip`           | Archive `dist/` -> `upwork-audit-ai-v<version>.zip` |
+| Commande | Action |
+| --- | --- |
+| `pnpm dev` | Dev server Vite (HMR popup/options) |
+| `pnpm build` | Build production dans `dist/` |
+| `pnpm typecheck` | TypeScript strict (no emit) |
+| `pnpm icons` | Regeneration des icones PNG |
+| `pnpm zip` | Archive `dist/` -> `surfagent-v<version>.zip` |
 
-## Limites connues / a venir
+## Tech stack
 
-- Le scraper repose sur des selecteurs DOM Upwork (susceptibles de changer) avec des regex de fallback.
-- L'audit est ponctuel ; pas de streaming de tokens ni d'historique persistant.
-- Tests manquants (a ajouter) : scraper, renderer Markdown, protocole de messages.
+- TypeScript strict, React 19, Vite 8 (rolldown) + `@crxjs/vite-plugin` 2
+- LangChain / LangGraph pour l'orchestration multi-agents
+- Memoire vectorielle locale (IndexedDB, embeddings locaux, zero appel reseau)
+- Gestionnaire de paquets : **pnpm**
+
+## Limites connues
+
+- Pages internes de Chrome (`chrome://...`) et Chrome Web Store bloquent l'injection.
+- L'execution d'actions navigateur (clic, formulaire) est a venir ; le mode agent couvre aujourd'hui la memoire et la recuperation web.
+- Tests manquants : protocole de messages, renderer Markdown, outils agent.

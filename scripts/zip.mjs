@@ -6,6 +6,6 @@ const zip = new AdmZip()
 
 zip.addLocalFolder('dist', '', /^(?!(.*\.map$)).*$/)
 
-const filename = `upwork-audit-ai-v${pkg.version}.zip`
+const filename = `surfagent-v${pkg.version}.zip`
 zip.writeZip(filename)
 console.log(`Package cree : ${filename}`)

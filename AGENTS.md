@@ -1,4 +1,4 @@
-# AGENTS.md — Upwork Profile Audit AI
+# AGENTS.md — SurfAgent
 
 Extension Chrome MV3 (Vite 8 + React 19 + TypeScript strict). Gestionnaire : **pnpm**.
 

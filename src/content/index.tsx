@@ -3,8 +3,8 @@ import { createRoot, type Root } from 'react-dom/client'
 import cssText from './content.css?inline'
 import { FloatingAssistant } from './FloatingAssistant'
 
-const HOST_ID = 'upwork-audit-ai-host'
-const STYLE_ID = 'upwork-audit-ai-style'
+const HOST_ID = 'surfagent-host'
+const STYLE_ID = 'surfagent-style'
 
 function buildHost(): ShadowRoot {
   let host = document.getElementById(HOST_ID)

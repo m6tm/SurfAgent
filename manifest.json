@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Upwork Profile Audit AI",
-  "short_name": "Upwork Audit AI",
-  "description": "Audite les profils freelances Upwork avec l'IA. Connexion via ton compte ChatGPT et rapport d'audit en quelques secondes.",
+  "name": "SurfAgent",
+  "short_name": "SurfAgent",
+  "description": "Agent de navigation web autonome, integrable par d'autres outils et applications. Connexion via ton compte ChatGPT.",
   "version": "0.1.0",
   "icons": {
     "16": "public/icons/icon16.png",
@@ -12,7 +12,7 @@
   },
   "action": {
     "default_popup": "src/popup/index.html",
-    "default_title": "Upwork Profile Audit AI"
+    "default_title": "SurfAgent"
   },
   "options_page": "src/options/index.html",
   "background": {
