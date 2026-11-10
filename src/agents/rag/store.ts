@@ -103,6 +103,31 @@ export class RagStore {
     return txRequest<number>(this.db, 'readonly', (store) => store.count())
   }
 
+  /** Indique si l'URL a deja ete indexee (deduplication d'ingestion). */
+  async hasUrl(url: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      try {
+        const tx = this.db.transaction(STORE_CHUNKS, 'readonly')
+        const req = tx.objectStore(STORE_CHUNKS).openCursor()
+        req.onsuccess = () => {
+          const cursor = req.result
+          if (!cursor) {
+            resolve(false)
+            return
+          }
+          if ((cursor.value as StoredChunk).source?.url === url) {
+            resolve(true)
+            return
+          }
+          cursor.continue()
+        }
+        req.onerror = () => resolve(false)
+      } catch {
+        resolve(false)
+      }
+    })
+  }
+
   /** Purge complete (debug). */
   async clear(): Promise<void> {
     await txRequest(this.db, 'readwrite', (store) => store.clear() as IDBRequest<undefined>)

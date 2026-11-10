@@ -45,8 +45,15 @@ async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>
     }
     case 'AGENTS:INGEST_PAGE': {
       const store = await RagStore.create(new LocalHashEmbeddings())
-      const added = await ingestPage(store, message.payload.page)
-      return { ok: true, data: { chunks: added } }
+      try {
+        if (await store.hasUrl(message.payload.page.url)) {
+          return { ok: true, data: { chunks: 0 } }
+        }
+        const added = await ingestPage(store, message.payload.page)
+        return { ok: true, data: { chunks: added } }
+      } finally {
+        store.close()
+      }
     }
     case 'MODELS:LIST':
       return { ok: true, data: await listModels() }

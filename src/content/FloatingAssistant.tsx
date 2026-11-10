@@ -55,6 +55,10 @@ export function FloatingAssistant() {
       return
     }
     void loadModels()
+    // Ingestion RAG de la page en arriere-plan (dedupliquee par URL cote background).
+    void sendToBackground<{ chunks: number }>({ type: 'AGENTS:INGEST_PAGE', payload: { page: getPageContext() } }).catch(
+      () => undefined,
+    )
   }, [auth?.state])
 
   async function loadModels() {
