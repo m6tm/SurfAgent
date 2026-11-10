@@ -3,7 +3,7 @@ import type { AgentTurnResult, LoginState, PageContext, RuntimeMessage, RuntimeR
 import { cancelFlow, login, logout, poll, status } from './auth'
 import { answerPageQuestion, listModels, selectModel } from './openai'
 import { runAgentTurn } from '../agents/graph'
-import { ingestPage } from '../agents/rag/ingest'
+import { ingestConversation, ingestPage } from '../agents/rag/ingest'
 import { RagStore } from '../agents/rag/store'
 import { LocalHashEmbeddings } from '../agents/rag/embeddings'
 
@@ -31,13 +31,28 @@ async function handle(message: RuntimeMessage): Promise<RuntimeResponse<unknown>
     case 'AGENTS:ASK': {
       const { question, page } = message.payload
       const state = await runAgentTurn(question, (page as PageContext | null) ?? null)
+      const answer = state.finalAnswer ?? ''
+
+      // Persistance du tour dans la memoire conversationnelle (fire-and-forget).
+      if (answer.trim()) {
+        void RagStore.create(new LocalHashEmbeddings())
+          .then(async (store) => {
+            try {
+              await ingestConversation(store, question, answer, (page as PageContext | null) ?? null)
+            } finally {
+              store.close()
+            }
+          })
+          .catch(() => undefined)
+      }
+
       return {
         ok: true,
         data: {
           mode: state.routing?.mode ?? null,
           routingSource: state.routing?.source ?? null,
           confidence: state.routing?.confidence ?? 0,
-          answer: state.finalAnswer ?? '',
+          answer,
           todos: state.todos ?? [],
           warning: state.warning ?? null,
         } satisfies AgentTurnResult,
